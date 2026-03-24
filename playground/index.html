@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>草语言 Playground</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Toolbar -->
+    <header class="toolbar">
+      <div class="toolbar-left">
+        <h1 class="logo">草<span class="logo-sub">语言</span></h1>
+        <span class="version">v0.1.0</span>
+        <button id="btn-mode-toggle" class="btn btn-small btn-mode">📖 开始学习</button>
+      </div>
+      <div class="toolbar-center">
+        <!-- Sandbox mode controls -->
+        <div id="sandbox-controls" class="mode-controls">
+          <select id="examples" class="example-select">
+            <option value="">选择示例...</option>
+          </select>
+        </div>
+        <!-- Course mode controls -->
+        <div id="course-controls" class="mode-controls" style="display: none;">
+          <button id="btn-prev-lesson" class="btn btn-small" disabled>◀ 上一课</button>
+          <select id="lesson-select" class="example-select lesson-select"></select>
+          <button id="btn-next-lesson" class="btn btn-small">下一课 ▶</button>
+        </div>
+      </div>
+      <div class="toolbar-right">
+        <!-- Easter egg toggles (sandbox mode) -->
+        <div id="egg-controls">
+          <label class="egg-toggle" title="社会信用系统">
+            <input type="checkbox" id="egg-social" /> 🏅 社会信用
+          </label>
+          <label class="egg-toggle" title="996模式">
+            <input type="checkbox" id="egg-996" /> 💀 996
+          </label>
+          <label class="egg-toggle" title="严厉模式">
+            <input type="checkbox" id="egg-strict" /> 🔴 严厉
+          </label>
+        </div>
+        <button id="btn-run" class="btn btn-run">▶ 整活！</button>
+      </div>
+    </header>
+
+    <!-- Main panels -->
+    <main class="panels">
+      <div class="panel panel-editor">
+        <div class="panel-header">
+          <span>编辑器</span>
+          <span class="hint">Ctrl+Enter 运行</span>
+        </div>
+        <div id="editor"></div>
+      </div>
+      <div class="panel panel-output">
+        <div class="panel-header">
+          <!-- Sandbox header -->
+          <span id="output-title">输出</span>
+          <!-- Course tabs (hidden in sandbox mode) -->
+          <div id="output-tabs" class="output-tabs" style="display: none;">
+            <button class="tab active" data-tab="lesson">📖 课程</button>
+            <button class="tab" data-tab="output">💻 输出</button>
+          </div>
+          <div class="output-actions">
+            <button id="btn-share" class="btn btn-small">🔗 分享</button>
+            <button id="btn-clear" class="btn btn-small">清空</button>
+          </div>
+        </div>
+        <!-- Lesson tab content (course mode) -->
+        <div id="lesson-panel" class="tab-content hidden">
+          <div id="lesson-content" class="lesson-content"></div>
+        </div>
+        <!-- Output tab content -->
+        <div id="output-panel" class="tab-content">
+          <div id="output" class="terminal-output"></div>
+        </div>
+        <!-- Validation bar (course mode) -->
+        <div id="validation-bar" class="validation-bar idle" style="display: none;">
+          运行代码查看结果...
+        </div>
+        <!-- Easter egg widgets -->
+        <div id="widgets" class="widgets"></div>
+      </div>
+    </main>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
