@@ -142,7 +142,7 @@ export class CourseController {
       if (!lp.completed) {
         markLessonComplete(this.progress, this.currentLesson.id, userCode);
         adjustSocialCredit(this.progress, 50);
-        this.showToast(`🎉 +50 社会信用！课程通过！`);
+        this.showToast(`🎉 +50 摸鱼值！课程通过！`);
       }
       lp.attempts++;
       saveProgress(this.progress);
@@ -172,7 +172,7 @@ export class CourseController {
 
     let html = `
       <div class="lesson-header">
-        <span class="progress-badge">${stats.completed}/${stats.total} 完成 | 🏅 ${this.progress.socialCredit}</span>
+        <span class="progress-badge">${stats.completed}/${stats.total} 完成 | 🐟 ${this.progress.socialCredit}</span>
         <button class="btn-reset-lesson" id="btn-reset-lesson">↻ 重置代码</button>
       </div>
       ${lesson.instruction}
@@ -186,7 +186,7 @@ export class CourseController {
     }
     // Show hint button if more hints available
     if (lp.hintsRevealed < lesson.hints.length) {
-      html += `<button class="btn-hint" id="btn-reveal-hint">💡 显示提示（-5 社会信用）</button>`;
+      html += `<button class="btn-hint" id="btn-reveal-hint">💡 显示提示（-5 摸鱼值）</button>`;
     }
     // Solution button
     if (lesson.solutionCode) {

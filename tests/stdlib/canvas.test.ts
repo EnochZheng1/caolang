@@ -54,6 +54,7 @@ function fakeBrowser() {
   };
 
   let opened: [number, number] | null = null;
+  const saved: string[] = [];
   const host = {
     canvas: canvas as unknown as HTMLCanvasElement,
     createCanvas: () => ({ getContext: () => ctx }) as unknown as HTMLCanvasElement,
@@ -61,6 +62,9 @@ function fakeBrowser() {
     now: () => now,
     onOpen: (w: number, h: number) => {
       opened = [w, h];
+    },
+    saveImage: (_canvas: HTMLCanvasElement, name: string) => {
+      saved.push(name);
     },
   };
 
@@ -81,6 +85,12 @@ function fakeBrowser() {
     },
     key(type: "keydown" | "keyup", key: string) {
       listeners.get(type)?.forEach((fn) => fn({ key, target: null, preventDefault() {} }));
+    },
+    saved,
+    /** Touch at canvas-element coordinates (the fake element is 100×100 at the origin). */
+    touch(type: "touchstart" | "touchmove" | "touchend", id: number, clientX: number, clientY: number) {
+      const t = { identifier: id, clientX, clientY };
+      listeners.get(type)?.forEach((fn) => fn({ changedTouches: [t], preventDefault() {} }));
     },
   };
 }
@@ -176,6 +186,43 @@ describe("画布", () => {
     expect(browser.listenerCount()).toBe(0);
   });
 
+  it("虚拟手柄: buttons press their keys and the joystick acts as arrow keys", () => {
+    // 100×100 canvas so element coordinates equal logical ones
+    const { browser, output } = run(
+      '开画（100，100）\n虚拟手柄（「空格："扔"」）\n' +
+        '一直卷（整活（秒）「喊话（按住了吗（"空格"），按住了吗（"上"），按住了吗（"右"），取整（摇杆（）.y * 10），触屏吗（））」）',
+    );
+    browser.step();
+    browser.touch("touchstart", 1, 66, 66); // the button sits at (width - 34, height - 34)
+    browser.step();
+    browser.touch("touchend", 1, 66, 66);
+    browser.touch("touchstart", 2, 20, 60); // left half starts the joystick
+    browser.touch("touchmove", 2, 20, 20); // drag straight up, past the radius
+    browser.step();
+    browser.touch("touchend", 2, 20, 20);
+    browser.step();
+    expect(output).toEqual([
+      "没有内味 没有内味 没有内味 0 没有内味",
+      "确实 没有内味 没有内味 0 确实",
+      "没有内味 确实 没有内味 -10 确实",
+      "没有内味 没有内味 没有内味 0 确实",
+    ]);
+  });
+
+  it("a tap that misses the joystick and buttons counts as a mouse click", () => {
+    const { browser, output } = run('开画（100，100）\n虚拟手柄（）\n一直卷（整活（秒）「喊话（鼠标（）.按下，取整（鼠标（）.x））」）');
+    browser.touch("touchstart", 1, 70, 20);
+    browser.step();
+    browser.touch("touchend", 1, 70, 20);
+    browser.step();
+    expect(output).toEqual(["确实 70", "没有内味 70"]);
+  });
+
+  it("存图 hands the canvas to the host", () => {
+    const { browser } = run('开画（10，10）\n存图（"战绩.png"）\n存图（）');
+    expect(browser.saved).toEqual(["战绩.png", "草语言.png"]);
+  });
+
   it("canvas builtins only exist when a host installs them", () => {
     expect(() => runCompiled("开画（1，1）", { output: () => {} })).toThrow("这谁啊，不认识: 开画");
   });
@@ -191,6 +238,11 @@ describe("画布", () => {
     browser.key("keydown", "w");
     browser.key("keydown", " ");
     for (let i = 0; i < 120; i++) browser.step();
+    // touch play too: joystick forward, tap to throw
+    browser.touch("touchstart", 1, 10, 80);
+    browser.touch("touchmove", 1, 10, 40);
+    browser.touch("touchstart", 2, 80, 30);
+    for (let i = 0; i < 30; i++) browser.step();
     expect(errors).toEqual([]);
     expect(browser.calls.filter(([name]) => name === "fillText").length).toBeGreaterThan(100);
   });

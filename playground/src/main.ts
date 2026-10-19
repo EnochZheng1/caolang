@@ -290,7 +290,7 @@ function updateCourseWidgets(): void {
   const pct = Math.min(100, (credit / 150) * 100);
   const fillClass = credit > 80 ? "" : credit > 40 ? "medium" : "low";
   widget.innerHTML = `
-    🏅 社会信用: ${credit}
+    🐟 摸鱼值: ${credit}
     <div class="credit-meter">
       <div class="credit-meter-fill ${fillClass}" style="width: ${pct}%"></div>
     </div>

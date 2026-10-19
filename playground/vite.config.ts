@@ -9,6 +9,10 @@ export default defineConfig({
       "@caolang": resolve(__dirname, "../src"),
     },
   },
+  server: {
+    // examples/ lives outside the playground folder
+    fs: { allow: [".."] },
+  },
   build: {
     target: "es2022",
     outDir: "dist",

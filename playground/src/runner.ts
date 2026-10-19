@@ -1,6 +1,6 @@
 import { runCompiled } from "@caolang/compiler/index.js";
 import type { RunningProgram } from "@caolang/compiler/index.js";
-import { installCanvas, CANVAS_BUILTINS } from "@caolang/stdlib/index.js";
+import { installCanvas, CANVAS_BUILTINS, showSavedImage } from "@caolang/stdlib/index.js";
 import { describeError } from "@caolang/errors/index.js";
 
 export interface RunOptions {
@@ -58,6 +58,8 @@ export function runCode(source: string, options: RunOptions = {}, stage?: StageH
               now: () => performance.now(),
               createAudioContext: () => new AudioContext(),
               onOpen: stage.onOpen,
+              touchDevice: navigator.maxTouchPoints > 0,
+              saveImage: showSavedImage,
             })
         : undefined,
       onError: stage ? (e) => stage.onLateError(describeError(e)) : undefined,
