@@ -3,7 +3,7 @@ import { EditorState } from "@codemirror/state";
 import { basicSetup } from "codemirror";
 import { javascript } from "@codemirror/lang-javascript";
 import { oneDark } from "@codemirror/theme-one-dark";
-import { runCode, RunOptions } from "./runner.js";
+import { runCode, stopRunning, RunOptions, StageHost } from "./runner.js";
 import { EXAMPLES } from "./examples.js";
 import { decodeFromHash, copyShareLink } from "./share.js";
 import { CourseController } from "./course/controller.js";
@@ -22,6 +22,9 @@ const eggSocial = document.getElementById("egg-social") as HTMLInputElement;
 const egg996 = document.getElementById("egg-996") as HTMLInputElement;
 const eggStrict = document.getElementById("egg-strict") as HTMLInputElement;
 const toastEl = document.getElementById("toast")!;
+const stageEl = document.getElementById("stage")!;
+const stageCanvas = document.getElementById("stage-canvas") as HTMLCanvasElement;
+const btnFullscreen = document.getElementById("btn-fullscreen") as HTMLButtonElement;
 
 // Course-specific DOM
 const btnModeToggle = document.getElementById("btn-mode-toggle") as HTMLButtonElement;
@@ -102,6 +105,8 @@ examplesSelect.addEventListener("change", () => {
 // ---- Mode Toggle ----
 btnModeToggle.addEventListener("click", () => {
   courseMode = !courseMode;
+  stopRunning();
+  stageEl.classList.add("hidden");
 
   if (courseMode) {
     // Save sandbox code
@@ -176,25 +181,12 @@ function executeCode(): void {
   // Sandbox mode: normal execution
   const source = getEditorCode();
   outputEl.innerHTML = "";
+  stageEl.classList.add("hidden");
 
-  const result = runCode(source, getEasterEggs());
+  const result = runCode(source, getEasterEggs(), stage);
 
-  for (const line of result.output) {
-    const div = document.createElement("div");
-    div.className = "line";
-    if (line.includes("⚠️") || line.includes("警告")) {
-      div.className = "line line-warning";
-    }
-    div.textContent = line;
-    outputEl.appendChild(div);
-  }
-
-  if (result.error) {
-    const div = document.createElement("div");
-    div.className = "line line-error";
-    div.textContent = `错误！${result.error}`;
-    outputEl.appendChild(div);
-  }
+  for (const line of result.output) appendOutput(line);
+  if (result.error) appendError(result.error);
 
   const meta = document.createElement("div");
   meta.className = "line line-meta";
@@ -204,6 +196,42 @@ function executeCode(): void {
   outputEl.scrollTop = outputEl.scrollHeight;
   updateWidgets(result);
 }
+
+// ---- Output ----
+function appendOutput(line: string): void {
+  const div = document.createElement("div");
+  div.className = "line";
+  if (line.includes("⚠️") || line.includes("警告")) {
+    div.className = "line line-warning";
+  }
+  div.textContent = line;
+  outputEl.appendChild(div);
+  outputEl.scrollTop = outputEl.scrollHeight;
+}
+
+function appendError(message: string): void {
+  const div = document.createElement("div");
+  div.className = "line line-error";
+  div.textContent = `错误！${message}`;
+  outputEl.appendChild(div);
+  outputEl.scrollTop = outputEl.scrollHeight;
+}
+
+// ---- 画布 stage ----
+const stage: StageHost = {
+  canvas: stageCanvas,
+  onOpen: () => {
+    stageEl.classList.remove("hidden");
+    stageCanvas.focus();
+  },
+  onLateOutput: appendOutput,
+  onLateError: appendError,
+};
+
+btnFullscreen.addEventListener("click", () => {
+  void stageCanvas.requestFullscreen?.();
+  stageCanvas.focus();
+});
 
 // ---- Widgets ----
 function updateWidgets(result: { output: string[]; error: string | null }): void {

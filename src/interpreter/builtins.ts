@@ -484,6 +484,34 @@ export function registerBuiltins(env: Environment, output: OutputFn): void {
     },
     {
       type: "builtin",
+      name: "正弦",
+      arity: 1,
+      call: (args) => caoNumber(Math.sin(expectNumber("正弦", args[0]))),
+    },
+    {
+      type: "builtin",
+      name: "余弦",
+      arity: 1,
+      call: (args) => caoNumber(Math.cos(expectNumber("余弦", args[0]))),
+    },
+    {
+      type: "builtin",
+      name: "正切",
+      arity: 1,
+      call: (args) => caoNumber(Math.tan(expectNumber("正切", args[0]))),
+    },
+    {
+      // 反正切（y，x） is atan2
+      type: "builtin",
+      name: "反正切",
+      arity: [1, 2],
+      call: (args) => {
+        const y = expectNumber("反正切", args[0]);
+        return caoNumber(args.length === 1 ? Math.atan(y) : Math.atan2(y, expectNumber("反正切", args[1])));
+      },
+    },
+    {
+      type: "builtin",
       name: "随机整数",
       arity: 2,
       call: (args) => {
@@ -499,4 +527,5 @@ export function registerBuiltins(env: Environment, output: OutputFn): void {
   for (const builtin of builtins) {
     env.define(builtin.name, builtin);
   }
+  env.define("圆周率", caoNumber(Math.PI));
 }

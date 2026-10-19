@@ -17,6 +17,8 @@ export interface CompileOptions {
   /** Lets 拿来吧你 bundle other .cao files. Without it, imports fail at runtime. */
   modules?: ModuleLoader;
   easterEggs?: { socialCredit?: boolean; mode996?: boolean };
+  /** Builtins a host library will add at runtime (e.g. CANVAS_BUILTINS). */
+  extraBuiltins?: readonly string[];
 }
 
 export interface MappedLocation {
@@ -104,8 +106,11 @@ class Compiler {
   private currentFile = 0;
   /** While compiling `搞个 x = …`, references to x skip the scope being declared into. */
   private initializing: { name: string; scope: Scope } | null = null;
+  private builtins: Set<string>;
 
-  constructor(private options: CompileOptions) {}
+  constructor(private options: CompileOptions) {
+    this.builtins = new Set([...BUILTINS, ...(options.extraBuiltins ?? [])]);
+  }
 
   compileAll(main: Program): CompileResult {
     const mainPath = this.options.filename ?? null;
@@ -430,7 +435,7 @@ class Compiler {
     const skip = this.initializing?.name === name ? this.initializing.scope : undefined;
     const js = scope.lookup(name, skip);
     if (js !== undefined) return js;
-    if (BUILTINS.has(name)) return `$b[${JSON.stringify(name)}]`;
+    if (this.builtins.has(name)) return `$b[${JSON.stringify(name)}]`;
     return undefined;
   }
 
@@ -442,7 +447,7 @@ class Compiler {
   }
 
   private guess(name: string, scope: Scope): string | null {
-    return suggest(name, [...scope.visibleNames(), ...BUILTINS]);
+    return suggest(name, [...scope.visibleNames(), ...this.builtins]);
   }
 
   private assignment(expr: Extract<Expression, { type: "AssignmentExpression" }>, scope: Scope): string {

@@ -9,7 +9,8 @@ import { formatError, CaoError } from "./errors/index.js";
 import { nodeModuleLoader } from "./node-loader.js";
 import { startRepl } from "./repl.js";
 import { compileSource, execute } from "./compiler/index.js";
-import { loadNpmModules, buildStandalone } from "./compiler/node.js";
+import { loadNpmModules, buildStandalone, buildWebPage } from "./compiler/node.js";
+import { CANVAS_BUILTINS } from "./stdlib/index.js";
 import type { EasterEggOptions } from "./interpreter/easter-eggs.js";
 
 const rawArgs = process.argv.slice(2);
@@ -30,6 +31,8 @@ function printUsage(): void {
   cao run <文件.cao>      执行一个 .cao 文件（编译成 JS 跑，快）
   cao build <文件.cao> [-o 输出.mjs]
                            编译成独立的 JS 文件，node 或浏览器都能跑
+  cao build <文件.cao> --网页
+                           编译成一个 HTML 网页（带画布，做游戏用）
   cao tokenize <文件.cao>  输出词法分析结果（调试用）
   cao parse <文件.cao>     输出语法树（调试用）
   cao repl                 启动交互式控制台
@@ -128,12 +131,16 @@ async function runFile(filepath: string): Promise<void> {
 function buildFile(filepath: string): void {
   const { source, filename } = readSource(filepath);
   const eggs = getEasterEggs(source);
-  const target = resolve(outFile ?? filepath.replace(/\.cao$/, "") + ".mjs");
+  const web = flags.has("--网页") || flags.has("--web");
+  const base = filepath.replace(/\.cao$/, "");
+  const target = resolve(outFile ?? base + (web ? ".html" : ".mjs"));
   try {
     const compiled = compileSource(stripStrictDirective(source), {
       easterEggs: eggs, modules: nodeModuleLoader, filename, source,
+      extraBuiltins: web ? CANVAS_BUILTINS : undefined,
     });
-    writeFileSync(target, buildStandalone(compiled));
+    const title = base.split(/[\\/]/).pop() ?? "草语言";
+    writeFileSync(target, web ? buildWebPage(compiled, title) : buildStandalone(compiled));
   } catch (e) {
     reportAndExit(e, source, filename);
   }

@@ -253,6 +253,48 @@ html, body {
   text-shadow: none;
 }
 
+/* === 画布 stage === */
+.stage {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #000;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+  max-height: 65%;
+}
+
+.stage.hidden {
+  display: none;
+}
+
+.stage canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  image-rendering: pixelated;
+  outline: none;
+}
+
+.stage canvas:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  object-fit: contain;
+  background: #000;
+}
+
+.stage-fullscreen {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  opacity: 0.6;
+}
+
+.stage-fullscreen:hover {
+  opacity: 1;
+}
+
 /* === Widgets (Easter Eggs) === */
 .widgets {
   display: flex;

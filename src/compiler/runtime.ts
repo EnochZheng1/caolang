@@ -13,6 +13,8 @@
 
 export interface RuntimeHost {
   output: (text: string) => void;
+  /** Errors thrown later from callbacks (e.g. a 一直卷 game loop). Without it they're rethrown. */
+  onError?: (error: unknown) => void;
 }
 
 export interface CompiledError extends Error {
@@ -38,6 +40,26 @@ export function createRuntime(host: RuntimeHost) {
 
   const fail = (message: string): never => {
     throw new CaoError(message);
+  };
+
+  // Things to undo when a program is stopped (game loops, event listeners…)
+  const cleanups: Array<() => void> = [];
+  const onCleanup = (fn: () => void): void => {
+    cleanups.push(fn);
+  };
+  const stop = (): void => {
+    while (cleanups.length) cleanups.pop()!();
+  };
+
+  /** Call a CaoLang callback from outside the program (a timer, an event), reporting errors. */
+  const guard = (fn: Function, args: Any[]): Any => {
+    try {
+      return fn(...args);
+    } catch (e) {
+      stop();
+      if (host.onError) host.onError(e);
+      else throw e;
+    }
   };
 
   const builtinSet = new WeakSet<Function>();
@@ -350,18 +372,27 @@ export function createRuntime(host: RuntimeHost) {
 
   // ---- Builtins ----
 
-  const builtins: Record<string, Function> = Object.create(null);
+  const builtins: Record<string, Any> = Object.create(null);
 
   const def = (name: string, min: number, max: number, impl: (...args: Any[]) => Any): void => {
-    const fn = function (this: unknown) {
-      const n = arguments.length;
-      if (n < min || n > max) {
-        const need = min === max ? `${min}` : max === Infinity ? `至少${min}` : `${min}到${max}`;
-        fail(`参数数量不对，「${name}」需要${need}个，你给了${n}个，搞什么飞机`);
-      }
-      // eslint-disable-next-line prefer-rest-params
-      return impl.apply(null, arguments as unknown as Any[]);
+    const arityError = (n: number): never => {
+      const need = min === max ? `${min}` : max === Infinity ? `至少${min}` : `${min}到${max}`;
+      return fail(`参数数量不对，「${name}」需要${need}个，你给了${n}个，搞什么飞机`);
     };
+    // Builtins are called per pixel in games, so avoid apply() when the
+    // implementation takes its arguments as plain parameters (missing ones are undefined)
+    const fn = impl.length === max && max <= 6
+      ? function (a: Any, b: Any, c: Any, d: Any, e: Any, f: Any) {
+        const n = arguments.length;
+        if (n < min || n > max) arityError(n);
+        return impl(a, b, c, d, e, f);
+      }
+      : function () {
+        const n = arguments.length;
+        if (n < min || n > max) arityError(n);
+        // eslint-disable-next-line prefer-rest-params
+        return impl.apply(null, arguments as unknown as Any[]);
+      };
     Object.defineProperty(fn, "name", { value: name });
     builtinSet.add(fn);
     builtins[name] = fn;
@@ -445,12 +476,12 @@ export function createRuntime(host: RuntimeHost) {
     return out;
   });
   // 内卷：把一整个数组卷成一个值（reduce）
-  def("内卷", 2, 3, function (a, f, init) {
+  def("内卷", 2, 3, (a, f, init) => {
     arr("内卷", a);
     callable("内卷", f);
     let i = 0;
     let acc = init;
-    if (arguments.length < 3) {
+    if (init === undefined) {
       if (a.length === 0) fail("空数组卷不起来，给个初始值吧");
       acc = a[0];
       i = 1;
@@ -553,6 +584,12 @@ export function createRuntime(host: RuntimeHost) {
     };
   def("最大", 0, Infinity, extreme("最大", Math.max));
   def("最小", 0, Infinity, extreme("最小", Math.min));
+  def("正弦", 1, 1, (n) => Math.sin(num("正弦", n)));
+  def("余弦", 1, 1, (n) => Math.cos(num("余弦", n)));
+  def("正切", 1, 1, (n) => Math.tan(num("正切", n)));
+  // 反正切（y，x） is atan2
+  def("反正切", 1, 2, (y, x) => (x === undefined ? Math.atan(num("反正切", y)) : Math.atan2(num("反正切", y), num("反正切", x))));
+  builtins["圆周率"] = Math.PI;
   def("随机整数", 2, 2, (a, b) => {
     const lo = Math.ceil(num("随机整数", a));
     const hi = Math.floor(num("随机整数", b));
@@ -566,6 +603,8 @@ export function createRuntime(host: RuntimeHost) {
     get, index, setIndex, setMember, compoundIndex, compoundMember, callMethod, items,
     raise, caught, toCaoError, arity, undef, strayLoop,
     socialCredit, check996, defineModules, require, interop, noLoader, missingModule, dynamicImport,
+    // For libraries that add builtins (see stdlib/)
+    def, fail, guard, onCleanup, stop, num, str,
   };
 }
 
