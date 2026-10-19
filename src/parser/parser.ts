@@ -10,9 +10,20 @@ import {
   BooleanLiteral, NullLiteral, ArrayLiteral,
   BinaryExpression, LogicalExpression, UnaryExpression,
   AssignmentExpression, CallExpression, IndexExpression,
+  ForEachStatement, ExportStatement, ObjectLiteral,
+  FunctionExpression, MemberExpression,
 } from "./ast.js";
 import { Precedence, getInfixPrecedence } from "./precedence.js";
 import { SourceLocation } from "../utils/source-location.js";
+import { CaoSyntaxError } from "../errors/error-types.js";
+
+const ASSIGN_OPERATORS: Partial<Record<TokenType, AssignmentExpression["operator"]>> = {
+  [TokenType.ASSIGN]: "=",
+  [TokenType.PLUS_ASSIGN]: "+=",
+  [TokenType.MINUS_ASSIGN]: "-=",
+  [TokenType.STAR_ASSIGN]: "*=",
+  [TokenType.SLASH_ASSIGN]: "/=",
+};
 
 export class Parser {
   private tokens: Token[];
@@ -51,9 +62,17 @@ export class Parser {
       case TokenType.GAO_GE:
         return this.parseVariableDeclaration();
       case TokenType.ZHENG_HUO:
+        // 整活（…）without a name is an anonymous function expression
+        if (this.peekType(1) === TokenType.LEFT_PAREN) {
+          return this.parseExpressionStatement();
+        }
         return this.parseFunctionDeclaration();
       case TokenType.RU_GUO:
         return this.parseIfStatement();
+      case TokenType.PAN_TA:
+        return this.parseForEachStatement();
+      case TokenType.SHANG_JIAO:
+        return this.parseExportStatement();
       case TokenType.JUAN:
         return this.parseWhileStatement();
       case TokenType.SHUAN_Q:
@@ -128,13 +147,53 @@ export class Parser {
     return { type: "WhileStatement", condition, body, loc };
   }
 
+  // 盘它（值：可迭代）「body」  or  盘它（键，值：可迭代）「body」
+  private parseForEachStatement(): ForEachStatement {
+    const loc = this.current().loc;
+    this.expect(TokenType.PAN_TA, "盘它");
+    this.expect(TokenType.LEFT_PAREN, "(");
+    let keyName: string | null = null;
+    let valueName = this.expectIdentifier();
+    if (this.match(TokenType.COMMA)) {
+      keyName = valueName;
+      valueName = this.expectIdentifier();
+    }
+    this.expect(TokenType.COLON, "：");
+    const iterable = this.parseExpression();
+    this.expect(TokenType.RIGHT_PAREN, ")");
+    const body = this.parseBlock();
+    return { type: "ForEachStatement", keyName, valueName, iterable, body, loc };
+  }
+
+  // 上交 搞个 … / 上交 整活 …
+  private parseExportStatement(): ExportStatement {
+    const loc = this.current().loc;
+    this.expect(TokenType.SHANG_JIAO, "上交");
+    let declaration: VariableDeclaration | FunctionDeclaration;
+    if (this.check(TokenType.GAO_GE)) {
+      declaration = this.parseVariableDeclaration();
+    } else if (this.check(TokenType.ZHENG_HUO) && this.peekType(1) === TokenType.IDENTIFIER) {
+      declaration = this.parseFunctionDeclaration();
+    } else {
+      throw this.error(`上交只能交「搞个」或者「整活」，'${this.current().value}' 国家不收`);
+    }
+    return { type: "ExportStatement", declaration, loc };
+  }
+
   // 栓Q expr?
   private parseReturnStatement(): ReturnStatement {
     const loc = this.current().loc;
     this.expect(TokenType.SHUAN_Q, "栓Q");
     let value: Expression | null = null;
-    // If next token is not a block closer or statement starter, parse the return value
-    if (!this.isAtEnd() && !this.check(TokenType.RIGHT_BRACE) && !this.isStatementStart()) {
+    // The return value must start on the same line as 栓Q; otherwise a bare 栓Q
+    // would swallow the next line's code as its value
+    if (
+      !this.isAtEnd() &&
+      this.current().loc.line === loc.line &&
+      !this.check(TokenType.RIGHT_BRACE) &&
+      !this.check(TokenType.SEMICOLON) &&
+      !this.isStatementStart()
+    ) {
       value = this.parseExpression();
     }
     return { type: "ReturnStatement", value, loc };
@@ -250,6 +309,10 @@ export class Parser {
         return this.parseGrouped();
       case TokenType.LEFT_BRACKET:
         return this.parseArrayLiteral();
+      case TokenType.LEFT_BRACE:
+        return this.parseObjectLiteral();
+      case TokenType.ZHENG_HUO:
+        return this.parseFunctionExpression();
       case TokenType.FEI:
         return this.parseUnary("非");
       case TokenType.MINUS:
@@ -262,19 +325,28 @@ export class Parser {
   private parseInfixExpression(left: Expression, precedence: Precedence): Expression {
     const token = this.current();
 
-    // Assignment: identifier = expr (right-associative)
-    if (token.type === TokenType.ASSIGN) {
-      if (left.type !== "Identifier") {
-        throw this.errorAt(left.loc, "只能给变量赋值啊兄弟");
+    // Assignment: target = expr / target += expr … (right-associative)
+    const assignOp = ASSIGN_OPERATORS[token.type];
+    if (assignOp) {
+      if (left.type !== "Identifier" && left.type !== "IndexExpression" && left.type !== "MemberExpression") {
+        throw this.errorAt(left.loc, "只能给变量、下标或者属性赋值啊兄弟");
       }
-      this.advance(); // skip =
-      const value = this.parseExpression(Precedence.ASSIGNMENT);
+      this.advance(); // skip the operator
+      const value = this.parseExpression(Precedence.ASSIGNMENT - 1);
       return {
         type: "AssignmentExpression",
-        name: left.name,
+        operator: assignOp,
+        target: left,
         value,
         loc: left.loc,
       } as AssignmentExpression;
+    }
+
+    // Member access: expr.name
+    if (token.type === TokenType.DOT) {
+      this.advance(); // skip .
+      const property = this.expectIdentifier();
+      return { type: "MemberExpression", object: left, property, loc: left.loc } as MemberExpression;
     }
 
     // Logical operators (short-circuit)
@@ -367,6 +439,51 @@ export class Parser {
     return { type: "ArrayLiteral", elements, loc };
   }
 
+  // 「 键：值，… 」 — keys are names, strings or numbers; 「名字」 is shorthand for 「名字：名字」
+  private parseObjectLiteral(): ObjectLiteral {
+    const loc = this.current().loc;
+    this.advance(); // skip {
+    const entries: ObjectLiteral["entries"] = [];
+
+    while (!this.check(TokenType.RIGHT_BRACE) && !this.isAtEnd()) {
+      const keyToken = this.current();
+      if (
+        keyToken.type !== TokenType.IDENTIFIER &&
+        keyToken.type !== TokenType.STRING &&
+        keyToken.type !== TokenType.NUMBER
+      ) {
+        throw this.error(`字典的键得是名字、字符串或数字，'${keyToken.value}' 是什么鬼`);
+      }
+      this.advance();
+      const key = keyToken.type === TokenType.NUMBER ? String(Number(keyToken.value)) : keyToken.value;
+
+      let value: Expression;
+      if (this.match(TokenType.COLON)) {
+        value = this.parseExpression();
+      } else if (keyToken.type === TokenType.IDENTIFIER) {
+        value = { type: "Identifier", name: key, loc: keyToken.loc };
+      } else {
+        throw this.error(`期望 '：'，但是看到了 '${this.current().value}'`);
+      }
+      entries.push({ key, value });
+      if (!this.match(TokenType.COMMA)) break;
+    }
+
+    this.expect(TokenType.RIGHT_BRACE, "}");
+    return { type: "ObjectLiteral", entries, loc };
+  }
+
+  // 整活（params）「body」 as an expression
+  private parseFunctionExpression(): FunctionExpression {
+    const loc = this.current().loc;
+    this.expect(TokenType.ZHENG_HUO, "整活");
+    this.expect(TokenType.LEFT_PAREN, "(");
+    const params = this.parseParamList();
+    this.expect(TokenType.RIGHT_PAREN, ")");
+    const body = this.parseBlock();
+    return { type: "FunctionExpression", params, body, loc };
+  }
+
   private parseUnary(operator: "非" | "-"): UnaryExpression {
     const loc = this.current().loc;
     this.advance(); // skip the operator
@@ -451,6 +568,10 @@ export class Parser {
     return this.tokens[this.pos];
   }
 
+  private peekType(offset: number): TokenType | undefined {
+    return this.tokens[this.pos + offset]?.type;
+  }
+
   private isAtEnd(): boolean {
     return this.pos >= this.tokens.length || this.tokens[this.pos].type === TokenType.EOF;
   }
@@ -465,7 +586,8 @@ export class Parser {
     const type = this.current().type;
     return (
       type === TokenType.GAO_GE ||
-      type === TokenType.ZHENG_HUO ||
+      // 整活 with a name starts a declaration; 整活（…） is an expression
+      (type === TokenType.ZHENG_HUO && this.peekType(1) === TokenType.IDENTIFIER) ||
       type === TokenType.RU_GUO ||
       type === TokenType.JUAN ||
       type === TokenType.SHUAN_Q ||
@@ -473,16 +595,17 @@ export class Parser {
       type === TokenType.JI_XU_JUAN ||
       type === TokenType.BAI_LAN ||
       type === TokenType.JI ||
-      type === TokenType.ZHEN_XIANG
+      type === TokenType.ZHEN_XIANG ||
+      type === TokenType.PAN_TA ||
+      type === TokenType.SHANG_JIAO
     );
   }
 
   private error(message: string): Error {
-    const loc = this.current().loc;
-    return new Error(`[${loc.line}:${loc.column}] ${message}`);
+    return new CaoSyntaxError(message, this.current().loc);
   }
 
   private errorAt(loc: SourceLocation, message: string): Error {
-    return new Error(`[${loc.line}:${loc.column}] ${message}`);
+    return new CaoSyntaxError(message, loc);
   }
 }

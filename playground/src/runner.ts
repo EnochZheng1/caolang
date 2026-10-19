@@ -1,5 +1,6 @@
 import { Parser } from "@caolang/parser/index.js";
 import { Interpreter } from "@caolang/interpreter/index.js";
+import { describeError } from "@caolang/errors/index.js";
 
 export interface RunOptions {
   socialCredit?: boolean;
@@ -31,11 +32,7 @@ export function runCode(source: string, options: RunOptions = {}): RunResult {
     });
     interpreter.run(program, source);
   } catch (e) {
-    if (e instanceof Error) {
-      error = e.message;
-    } else {
-      error = String(e);
-    }
+    error = describeError(e);
   }
 
   const time = performance.now() - start;

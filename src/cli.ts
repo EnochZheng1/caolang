@@ -5,7 +5,8 @@ import { resolve } from "node:path";
 import { Parser } from "./parser/index.js";
 import { Interpreter } from "./interpreter/index.js";
 import { Lexer } from "./lexer/index.js";
-import { formatError } from "./errors/index.js";
+import { formatError, CaoError } from "./errors/index.js";
+import { nodeModuleLoader } from "./node-loader.js";
 import { startRepl } from "./repl.js";
 import type { EasterEggOptions } from "./interpreter/easter-eggs.js";
 
@@ -18,7 +19,7 @@ const command = args[0];
 
 function printUsage(): void {
   console.log(`
-草语言 (CaoLang) v0.1.0 — 一个基于梗的中文编程语言
+草语言 (CaoLang) v0.2.0 — 一个基于梗的中文编程语言
 
 用法:
   cao run <文件.cao>      执行一个 .cao 文件
@@ -88,10 +89,13 @@ function runFile(filepath: string): void {
   try {
     const parser = Parser.fromSource(parseSource);
     const program = parser.parse();
-    const interpreter = new Interpreter({ easterEggs: eggs });
-    interpreter.run(program, source);
+    const interpreter = new Interpreter({ easterEggs: eggs, modules: nodeModuleLoader });
+    interpreter.run(program, source, filename);
   } catch (e) {
-    if (e instanceof Error) {
+    if (e instanceof CaoError) {
+      // Errors from an imported file carry that file's name and source
+      console.error(formatError(e.message, e.source ?? source, e.loc, e.filename ?? filename));
+    } else if (e instanceof Error) {
       console.error(formatError(e.message, source, undefined, filename));
     } else {
       console.error(e);
@@ -123,7 +127,7 @@ function parseFile(filepath: string): void {
 if (flags.has("--help") || flags.has("-h")) {
   printUsage();
 } else if (flags.has("--version") || flags.has("-v")) {
-  console.log("草语言 (CaoLang) v0.1.0");
+  console.log("草语言 (CaoLang) v0.2.0");
 } else if (!command || command === "repl") {
   startRepl();
 } else if (command === "run") {

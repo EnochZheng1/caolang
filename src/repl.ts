@@ -1,7 +1,9 @@
 import { createInterface } from "node:readline";
 import { Parser } from "./parser/index.js";
 import { Interpreter } from "./interpreter/index.js";
-import { displayValue, CAO_NULL } from "./interpreter/values.js";
+import { displayValue } from "./interpreter/values.js";
+import { describeError } from "./errors/index.js";
+import { nodeModuleLoader } from "./node-loader.js";
 
 export function startRepl(): void {
   const rl = createInterface({
@@ -10,10 +12,10 @@ export function startRepl(): void {
     prompt: "草> ",
   });
 
-  console.log("草语言 (CaoLang) v0.1.0 — 交互式控制台");
+  console.log("草语言 (CaoLang) v0.2.0 — 交互式控制台");
   console.log("输入代码开始整活，输入 .exit 退出\n");
 
-  const interpreter = new Interpreter();
+  const interpreter = new Interpreter({ modules: nodeModuleLoader });
 
   rl.prompt();
 
@@ -45,9 +47,7 @@ export function startRepl(): void {
         console.log(`\x1b[36m${displayValue(result)}\x1b[0m`);
       }
     } catch (e) {
-      if (e instanceof Error) {
-        console.error(`\x1b[31m${e.message}\x1b[0m`);
-      }
+      console.error(`\x1b[31m${describeError(e)}\x1b[0m`);
     }
 
     rl.prompt();

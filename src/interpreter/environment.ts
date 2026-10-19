@@ -30,6 +30,24 @@ export class Environment {
   }
 
   /**
+   * Look up a variable, or undefined if it isn't defined anywhere in the chain.
+   */
+  lookup(name: string): CaoValue | undefined {
+    const value = this.bindings.get(name);
+    if (value !== undefined) return value;
+    return this.parent?.lookup(name);
+  }
+
+  /**
+   * Every name visible from this scope (for "你是不是想说…" suggestions).
+   */
+  names(): Set<string> {
+    const all = this.parent ? this.parent.names() : new Set<string>();
+    for (const name of this.bindings.keys()) all.add(name);
+    return all;
+  }
+
+  /**
    * Assign to an existing variable in the nearest scope that contains it.
    * Throws if the variable doesn't exist anywhere in the chain.
    */

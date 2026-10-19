@@ -3,6 +3,14 @@ import { SourceLocation, loc } from "../utils/source-location.js";
 import { isIdentStart, isIdentChar, isDigit, isWhitespace } from "../utils/unicode.js";
 import { normalizePunct, PUNCT_TOKENS, isChinesePunct } from "./punctuation.js";
 import { KEYWORDS_BY_LENGTH } from "./keywords.js";
+import { CaoSyntaxError } from "../errors/error-types.js";
+
+const COMPOUND_ASSIGN: Record<string, TokenType> = {
+  "+": TokenType.PLUS_ASSIGN,
+  "-": TokenType.MINUS_ASSIGN,
+  "*": TokenType.STAR_ASSIGN,
+  "/": TokenType.SLASH_ASSIGN,
+};
 
 export class Lexer {
   private source: string;
@@ -138,6 +146,14 @@ export class Lexer {
       return token;
     }
 
+    // Compound assignment: += -= *= /=
+    if (this.peek(1) === "=" && ch in COMPOUND_ASSIGN) {
+      const token = this.makeToken(COMPOUND_ASSIGN[ch], ch + "=");
+      this.advance();
+      this.advance();
+      return token;
+    }
+
     // Single-char ASCII punctuation/operators
     const punctType = PUNCT_TOKENS[ch];
     if (punctType) {
@@ -183,6 +199,12 @@ export class Lexer {
         // If the keyword IS the entire value, just return the keyword token
         if (value.length === keyword.length) {
           return { type: tokenType, value: keyword, loc: startLoc };
+        }
+        // Single-char keywords (卷 润 寄 草 非) are too common as the first
+        // character of ordinary words — 草莓, 非常, 卷子, 润色, 寄件人.
+        // Only split them off when another keyword follows (e.g. 非确实).
+        if (keyword.length === 1 && !startsWithKeyword(value.slice(1))) {
+          break;
         }
         // Otherwise, we need to "push back" the non-keyword suffix.
         // Reset position to after the keyword.
@@ -346,10 +368,14 @@ export class Lexer {
   }
 
   private error(message: string): Error {
-    return new Error(`[${this.line}:${this.column}] ${message}`);
+    return new CaoSyntaxError(message, this.currentLoc(), this.source);
   }
 
   private errorAt(loc: SourceLocation, message: string): Error {
-    return new Error(`[${loc.line}:${loc.column}] ${message}`);
+    return new CaoSyntaxError(message, loc, this.source);
   }
+}
+
+function startsWithKeyword(text: string): boolean {
+  return KEYWORDS_BY_LENGTH.some(([keyword]) => text.startsWith(keyword));
 }

@@ -25,6 +25,8 @@ export enum TokenType {
   BING_QIE = "BING_QIE",         // 并且 → and
   HUO_ZHE = "HUO_ZHE",           // 或者 → or
   FEI = "FEI",                     // 非 → not
+  PAN_TA = "PAN_TA",             // 盘它 → for-each
+  SHANG_JIAO = "SHANG_JIAO",     // 上交 → export
 
   // Punctuation (canonical forms after normalization)
   LEFT_BRACE = "LEFT_BRACE",     // { or 「 or 『
@@ -33,6 +35,8 @@ export enum TokenType {
   RIGHT_PAREN = "RIGHT_PAREN",   // ) or ）
   COMMA = "COMMA",                 // , or ，
   SEMICOLON = "SEMICOLON",       // ; or ；
+  COLON = "COLON",               // : or ：
+  DOT = "DOT",                     // .
 
   // Operators
   PLUS = "PLUS",
@@ -41,6 +45,10 @@ export enum TokenType {
   SLASH = "SLASH",
   PERCENT = "PERCENT",
   ASSIGN = "ASSIGN",             // =
+  PLUS_ASSIGN = "PLUS_ASSIGN",   // +=
+  MINUS_ASSIGN = "MINUS_ASSIGN", // -=
+  STAR_ASSIGN = "STAR_ASSIGN",   // *=
+  SLASH_ASSIGN = "SLASH_ASSIGN", // /=
   EQUAL = "EQUAL",               // ==
   NOT_EQUAL = "NOT_EQUAL",       // !=
   LESS = "LESS",
