@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import { CompileResult } from "./codegen.js";
 import { createRuntime } from "./runtime.js";
 import { installCanvas } from "../stdlib/canvas.js";
+import { showSavedImage } from "../stdlib/save-image.js";
 
 /**
  * Import the npm/node modules a compiled program needs, resolving bare
@@ -76,7 +77,11 @@ export function buildWebPage(result: CompileResult, title: string): string {
 <!-- 由草语言编译生成 — compiled from CaoLang (草语言) -->
 <style>
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
-  canvas { display: block; width: 100vw; height: 100vh; object-fit: contain; image-rendering: pixelated; outline: none; }
+  canvas { display: block; width: 100vw; height: 100vh; object-fit: contain; image-rendering: pixelated; outline: none;
+           touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  #rotate { display: none; position: fixed; top: 8px; left: 0; right: 0; text-align: center; color: #fff;
+            font: bold 14px sans-serif; opacity: 0.8; pointer-events: none; }
+  @media (orientation: portrait) and (pointer: coarse) { #rotate { display: block; } }
   #log { position: fixed; left: 8px; bottom: 8px; max-height: 30vh; overflow: auto; color: #3f3;
          font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap; pointer-events: none; }
   #log .err { color: #f55; }
@@ -85,10 +90,12 @@ export function buildWebPage(result: CompileResult, title: string): string {
 <body>
 <canvas id="stage" tabindex="0"></canvas>
 <div id="log"></div>
+<div id="rotate">📱 横过来玩更爽</div>
 <script type="module">
 var __name = (target) => target;
 const createRuntime = ${script(createRuntime.toString())};
 const installCanvas = ${script(installCanvas.toString())};
+const showSavedImage = ${script(showSavedImage.toString())};
 const log = document.getElementById("log");
 const say = (text, cls) => {
   const line = document.createElement("div");
@@ -108,6 +115,8 @@ installCanvas($, {
   now: () => performance.now(),
   createAudioContext: () => new AudioContext(),
   onOpen: () => canvas.focus(),
+  touchDevice: navigator.maxTouchPoints > 0,
+  saveImage: showSavedImage,
 });
 try {
 (function ($, $npm) {

@@ -23,6 +23,10 @@ export interface CanvasHost {
   createAudioContext?: () => AudioContext;
   /** Called when 开画 sizes the canvas, so the page can show it. */
   onOpen?: (width: number, height: number) => void;
+  /** A phone or tablet: show the virtual gamepad before the first touch. */
+  touchDevice?: boolean;
+  /** Show the canvas as an image the player can save or share (see 存图). */
+  saveImage?: (canvas: HTMLCanvasElement, filename: string) => void;
 }
 
 /** Names installCanvas defines, so the compiler can resolve them. */
@@ -30,7 +34,8 @@ export const CANVAS_BUILTINS = [
   "开画", "清屏", "画方块", "画框", "画圆", "画线", "写字", "透明度",
   "像素", "刷像素", "颜色", "混色",
   "按住了吗", "刚按了吗", "鼠标", "锁鼠标", "鼠标移动",
-  "一直卷", "别卷了", "嘀", "沙沙",
+  "虚拟手柄", "摇杆", "触屏吗",
+  "一直卷", "别卷了", "嘀", "沙沙", "存图",
 ];
 
 export function installCanvas($: Runtime, host: CanvasHost): void {
@@ -132,6 +137,13 @@ export function installCanvas($: Runtime, host: CanvasHost): void {
     g.fillText($.display(text), x, y);
     return null;
   });
+  // 存图（文件名?）: offer what's on the canvas right now as an image to save or share
+  def("存图", 0, 1, (name) => {
+    need();
+    if (!host.saveImage) return fail("这个环境存不了图");
+    host.saveImage(canvas, name === undefined ? "草语言.png" : str("存图", name));
+    return null;
+  });
   def("透明度", 1, 1, (a) => {
     need().globalAlpha = Math.max(0, Math.min(1, num("透明度", a)));
     return null;
@@ -194,12 +206,20 @@ export function installCanvas($: Runtime, host: CanvasHost): void {
     held.delete(e.key.toLowerCase());
   };
 
+  // Page coordinates → logical canvas coordinates. The canvas may be letterboxed
+  // (object-fit: contain), so the drawing is centered inside the element's box.
+  const toCanvasPoint = (clientX: number, clientY: number): [number, number] => {
+    const rect = canvas.getBoundingClientRect();
+    const k = Math.min(rect.width / width, rect.height / height) || 1;
+    const left = rect.left + (rect.width - width * k) / 2;
+    const top = rect.top + (rect.height - height * k) / 2;
+    return [(clientX - left) / k, (clientY - top) / k];
+  };
+
   const mouse = { x: 0, y: 0, down: false, dx: 0, dy: 0 };
   let wantLock = false;
   const toLogical = (e: MouseEvent) => {
-    const rect = canvas.getBoundingClientRect();
-    mouse.x = ((e.clientX - rect.left) / rect.width) * width;
-    mouse.y = ((e.clientY - rect.top) / rect.height) * height;
+    [mouse.x, mouse.y] = toCanvasPoint(e.clientX, e.clientY);
   };
   const onMouseMove = (e: MouseEvent) => {
     toLogical(e);
@@ -215,15 +235,178 @@ export function installCanvas($: Runtime, host: CanvasHost): void {
     mouse.down = false;
   };
 
+  // ---- Touch: virtual gamepad ----
+  // A floating joystick on the left half acts as the arrow keys; buttons on the
+  // right press whatever keys the game chose. So keyboard games work on phones.
+
+  const STICK_RADIUS = 26;
+  const BUTTON_RADIUS = 20;
+  let touchUsed = !!host.touchDevice;
+  let pad: Array<{ key: string; label: string; x: number; y: number }> | null = null;
+  const stick = { id: -1, ox: 0, oy: 0, x: 0, y: 0 };
+  const stickKeys = new Set<string>();
+  const buttonTouches = new Map<number, string>();
+  let mouseTouch = -1; // a tap that's neither joystick nor button counts as a click
+
+  const press = (k: string) => {
+    if (!held.has(k)) pressed.add(k);
+    held.add(k);
+  };
+
+  const layoutPad = (buttons: Array<[string, string]>) => {
+    // Bottom-right, stacked upwards, then leftwards
+    pad = buttons.map(([key, label], i) => ({
+      key,
+      label,
+      x: width - 34 - Math.floor(i / 2) * 50,
+      y: height - 34 - (i % 2) * 50,
+    }));
+  };
+
+  const updateStick = () => {
+    let vx = (stick.x - stick.ox) / STICK_RADIUS;
+    let vy = (stick.y - stick.oy) / STICK_RADIUS;
+    const len = Math.hypot(vx, vy);
+    if (len > 1) {
+      vx /= len;
+      vy /= len;
+    }
+    stick.x = stick.ox + vx * STICK_RADIUS;
+    stick.y = stick.oy + vy * STICK_RADIUS;
+    const want = new Set<string>();
+    if (vx < -0.35) want.add("arrowleft");
+    if (vx > 0.35) want.add("arrowright");
+    if (vy < -0.35) want.add("arrowup");
+    if (vy > 0.35) want.add("arrowdown");
+    for (const k of stickKeys) if (!want.has(k)) held.delete(k);
+    for (const k of want) if (!stickKeys.has(k)) press(k);
+    stickKeys.clear();
+    want.forEach((k) => stickKeys.add(k));
+  };
+
+  const stickVector = () =>
+    stick.id < 0 ? { x: 0, y: 0 } : { x: (stick.x - stick.ox) / STICK_RADIUS, y: (stick.y - stick.oy) / STICK_RADIUS };
+
+  const onTouchStart = (e: TouchEvent) => {
+    if (!looping) return;
+    e.preventDefault();
+    touchUsed = true;
+    for (const t of Array.from(e.changedTouches)) {
+      const [x, y] = toCanvasPoint(t.clientX, t.clientY);
+      const hit = pad?.find((b) => Math.hypot(b.x - x, b.y - y) <= BUTTON_RADIUS * 1.4);
+      if (hit) {
+        buttonTouches.set(t.identifier, hit.key);
+        press(hit.key);
+      } else if (x < width / 2 && stick.id < 0) {
+        Object.assign(stick, { id: t.identifier, ox: x, oy: y, x, y });
+      } else if (mouseTouch < 0) {
+        mouseTouch = t.identifier;
+        mouse.x = x;
+        mouse.y = y;
+        mouse.down = true;
+      }
+    }
+  };
+  const onTouchMove = (e: TouchEvent) => {
+    if (!looping) return;
+    e.preventDefault();
+    for (const t of Array.from(e.changedTouches)) {
+      if (t.identifier === stick.id) {
+        [stick.x, stick.y] = toCanvasPoint(t.clientX, t.clientY);
+        updateStick();
+      }
+    }
+  };
+  const onTouchEnd = (e: TouchEvent) => {
+    for (const t of Array.from(e.changedTouches)) {
+      const key = buttonTouches.get(t.identifier);
+      if (key !== undefined) {
+        buttonTouches.delete(t.identifier);
+        if (![...buttonTouches.values()].includes(key)) held.delete(key);
+      }
+      if (t.identifier === mouseTouch) {
+        mouseTouch = -1;
+        mouse.down = false;
+      }
+      if (t.identifier === stick.id) {
+        stick.id = -1;
+        stickKeys.forEach((k) => held.delete(k));
+        stickKeys.clear();
+      }
+    }
+  };
+
+  const drawPad = () => {
+    if (!pad || !touchUsed || !ctx) return;
+    const g = ctx;
+    const alpha = g.globalAlpha;
+    g.globalAlpha = 0.35;
+    g.fillStyle = "#ffffff";
+    g.strokeStyle = "#ffffff";
+    g.lineWidth = 1.5;
+    const [sx, sy] = stick.id < 0 ? [40, height - 40] : [stick.ox, stick.oy];
+    g.beginPath();
+    g.arc(sx, sy, STICK_RADIUS, 0, Math.PI * 2);
+    g.stroke();
+    g.beginPath();
+    g.arc(stick.id < 0 ? sx : stick.x, stick.id < 0 ? sy : stick.y, 11, 0, Math.PI * 2);
+    g.fill();
+    for (const b of pad) {
+      g.globalAlpha = held.has(b.key) ? 0.6 : 0.35;
+      g.beginPath();
+      g.arc(b.x, b.y, BUTTON_RADIUS, 0, Math.PI * 2);
+      g.fill();
+      g.globalAlpha = 0.9;
+      g.fillStyle = "#000000";
+      g.font = 'bold 10px "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif';
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillText(b.label, b.x, b.y);
+      g.fillStyle = "#ffffff";
+    }
+    g.globalAlpha = alpha;
+  };
+
+  // 虚拟手柄（「空格："扔"，回车："开始"」）: on touch screens, show a joystick
+  // (acts as the arrow keys) and one button per key, labelled. Call again to change buttons.
+  def("虚拟手柄", 0, 1, (buttons) => {
+    if (buttons !== undefined && (buttons === null || typeof buttons !== "object" || Array.isArray(buttons))) {
+      fail("虚拟手柄 要一个字典，比如 虚拟手柄（「空格：\"扔\"」）");
+    }
+    const entries: Array<[string, string]> = buttons === undefined
+      ? [["空格", "A"]]
+      : Object.keys(buttons).map((k) => [k, $.display(buttons[k])]);
+    const keys = entries.map(([k, label]) => [keyOf(k), label] as [string, string]);
+    // Let go of keys whose buttons disappeared
+    for (const [id, key] of buttonTouches) {
+      if (!keys.some(([k]) => k === key)) {
+        buttonTouches.delete(id);
+        held.delete(key);
+      }
+    }
+    layoutPad(keys);
+    listen();
+    return null;
+  });
+  // 摇杆（）: the joystick as numbers from -1 to 1, for smooth analog control
+  def("摇杆", 0, 0, () => ({ __proto__: null, ...stickVector() }));
+  // 触屏吗（）: has the player used the touch screen? (e.g. to show "点「开始」" instead of "按回车")
+  def("触屏吗", 0, 0, () => touchUsed);
+
   let listening = false;
   const listen = () => {
     if (listening) return;
     listening = true;
+    const active = { passive: false } as AddEventListenerOptions;
     win.addEventListener("keydown", onKeyDown as EventListener);
     win.addEventListener("keyup", onKeyUp as EventListener);
     canvas.addEventListener("mousemove", onMouseMove);
     canvas.addEventListener("mousedown", onMouseDown);
     win.addEventListener("mouseup", onMouseUp as EventListener);
+    canvas.addEventListener("touchstart", onTouchStart, active);
+    canvas.addEventListener("touchmove", onTouchMove, active);
+    canvas.addEventListener("touchend", onTouchEnd);
+    canvas.addEventListener("touchcancel", onTouchEnd);
     onCleanup(() => {
       listening = false;
       win.removeEventListener("keydown", onKeyDown as EventListener);
@@ -231,8 +414,15 @@ export function installCanvas($: Runtime, host: CanvasHost): void {
       canvas.removeEventListener("mousemove", onMouseMove);
       canvas.removeEventListener("mousedown", onMouseDown);
       win.removeEventListener("mouseup", onMouseUp as EventListener);
+      canvas.removeEventListener("touchstart", onTouchStart);
+      canvas.removeEventListener("touchmove", onTouchMove);
+      canvas.removeEventListener("touchend", onTouchEnd);
+      canvas.removeEventListener("touchcancel", onTouchEnd);
       held.clear();
       pressed.clear();
+      buttonTouches.clear();
+      stickKeys.clear();
+      stick.id = -1;
     });
   };
 
@@ -272,6 +462,7 @@ export function installCanvas($: Runtime, host: CanvasHost): void {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       guard(fn, [dt]);
+      drawPad();
       pressed.clear();
       mouse.dx = 0;
       mouse.dy = 0;

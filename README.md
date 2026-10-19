@@ -1,4 +1,18 @@
+<div align="center">
+
 # 草语言 (CaoLang) 🌿
+
+**用中文互联网黑话写代码 · 编译成 JavaScript · 跑得跟 JS 一样快**
+
+[**▶ 在线玩《逃离996》**](https://enochzheng1.github.io/caolang/996.html) &nbsp;·&nbsp; [**✏️ 在线写草语言**](https://enochzheng1.github.io/caolang/) &nbsp;·&nbsp; [English](README.en.md)
+
+<a href="https://enochzheng1.github.io/caolang/996.html"><img src="docs/demo.gif" width="640" alt="《逃离996》游戏画面：老板冲过来，被两封辞职信送走"></a>
+
+*《逃离996》—— 一个 100% 用草语言写的 3D 游戏，每一个像素都是草语言算出来的。手机也能玩。*
+
+</div>
+
+---
 
 > **一个基于梗的中文编程语言。写代码？不，我们叫它「整活」。**
 
@@ -21,20 +35,27 @@
 」
 ```
 
+别看它是梗，它是真能干活的语言：编译成 JavaScript（[比 Python 快 3~20 倍](#-编译成-javascript)），能用整个 npm 生态，能写 3D 游戏。
+
 ## 🎮 用草语言写的 3D 游戏：《逃离996》
 
 下班时间到了，但老板不让走。在办公室迷宫里躲开老板，用辞职信砸他们，找到「下班」出口润出去。撑到 21:00 还没走？996 模式开启，老板全体狂暴。
 
+**[▶ 现在就玩](https://enochzheng1.github.io/caolang/996.html)**（电脑用键盘，手机用屏幕上的摇杆）
+
 - **真 3D**：光线投射（raycasting）渲染，带纹理的墙、地毯、天花板、距离雾、像素画老板，60 帧
 - **每一个像素都是草语言算出来的**：没有游戏引擎，[`examples/逃离996.cao`](examples/逃离996.cao) 就是全部代码
-- **老板会寻路**：BFS 距离场，穿过迷宫追你
-- 落地窗外是还亮着灯的写字楼（大家都在加班），白板上的 KPI 一路往上涨
+- **老板会寻路**：BFS 距离场，穿过迷宫追你。被追上会掉发量，还要听「这个需求很简单」
+- 落地窗外是还亮着灯的写字楼（大家都在加班），白板上的 KPI 永远在波动
+- 结束后一键生成战绩图，看看你是「润学大师」还是「职场萌新」：
+
+<img src="docs/card.png" width="480" alt="战绩图：我润了！称号：准点下班第一人">
+
+想改难度？[在 Playground 里打开](https://enochzheng1.github.io/caolang/)，第一行就是 `搞个 老板速度 = 1.6`，改完点「整活！」。
 
 ```bash
 cao build examples/逃离996.cao --网页    # 编译成一个 70KB 的 HTML，双击就能玩
 ```
-
-想改难度？打开文件，第一行就是 `搞个 老板速度 = 1.6`。
 
 ---
 
