@@ -1,4 +1,5 @@
 import { SourceLocation } from "../utils/source-location.js";
+import { displayWidth } from "../utils/unicode.js";
 
 /**
  * Format a pretty error message with source context.
@@ -38,7 +39,9 @@ export function formatError(
 
       lines.push(`${padding} |`);
       lines.push(`${lineNum} | ${sourceLines[lineIdx]}`);
-      lines.push(`${padding} | ${" ".repeat(loc.column - 1)}\x1b[31m^ 这里有问题\x1b[0m`);
+      // Pad by display width so the caret lines up under CJK text
+      const before = [...sourceLines[lineIdx]].slice(0, loc.column - 1).join("");
+      lines.push(`${padding} | ${" ".repeat(displayWidth(before))}\x1b[31m^ 这里有问题\x1b[0m`);
     }
   }
 

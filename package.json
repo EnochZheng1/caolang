@@ -1,6 +1,6 @@
 {
   "name": "caolang",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "草语言 — A meme-based Chinese programming language",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -10,12 +10,16 @@ export enum Precedence {
   ADDITION = 6,      // + -
   MULTIPLY = 7,      // * / %
   UNARY = 8,         // 非 -
-  CALL = 9,          // () []
+  CALL = 9,          // () [] .
 }
 
 export function getInfixPrecedence(type: TokenType): Precedence {
   switch (type) {
     case TokenType.ASSIGN:
+    case TokenType.PLUS_ASSIGN:
+    case TokenType.MINUS_ASSIGN:
+    case TokenType.STAR_ASSIGN:
+    case TokenType.SLASH_ASSIGN:
       return Precedence.ASSIGNMENT;
     case TokenType.HUO_ZHE:
       return Precedence.OR;
@@ -38,6 +42,7 @@ export function getInfixPrecedence(type: TokenType): Precedence {
       return Precedence.MULTIPLY;
     case TokenType.LEFT_PAREN:
     case TokenType.LEFT_BRACKET:
+    case TokenType.DOT:
       return Precedence.CALL;
     default:
       return Precedence.NONE;

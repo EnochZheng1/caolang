@@ -96,6 +96,9 @@ export function checkStrictMode(source: string): string[] {
       if (ch === "(" || ch === ")") {
         violations.push(`第${i + 1}行：发现 '${ch}'，请使用（）！`);
       }
+      if (ch === ":") {
+        violations.push(`第${i + 1}行：发现 ':'，请使用：！`);
+      }
       if (ch === ";") {
         violations.push(`第${i + 1}行：发现 ';'，请使用；或者直接不写！`);
       }

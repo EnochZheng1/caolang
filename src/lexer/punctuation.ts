@@ -13,6 +13,7 @@ const PUNCT_MAP: Record<string, string> = {
   "\uFF09": ")",  // ） → )
   "\uFF0C": ",",  // ， → ,
   "\uFF1B": ";",  // ； → ;
+  "\uFF1A": ":",  // ： → :
   "\u3001": ",",  // 、 → , (Chinese enumeration comma)
 };
 
@@ -30,6 +31,8 @@ export const PUNCT_TOKENS: Record<string, TokenType> = {
   ")": TokenType.RIGHT_PAREN,
   ",": TokenType.COMMA,
   ";": TokenType.SEMICOLON,
+  ":": TokenType.COLON,
+  ".": TokenType.DOT,
   "[": TokenType.LEFT_BRACKET,
   "]": TokenType.RIGHT_BRACKET,
   "+": TokenType.PLUS,

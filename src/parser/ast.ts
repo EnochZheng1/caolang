@@ -79,6 +79,23 @@ export interface TryCatchStatement {
   loc: SourceLocation;
 }
 
+// 盘它（值：可迭代）「…」  or  盘它（键，值：可迭代）「…」
+export interface ForEachStatement {
+  type: "ForEachStatement";
+  keyName: string | null;
+  valueName: string;
+  iterable: Expression;
+  body: BlockStatement;
+  loc: SourceLocation;
+}
+
+// 上交 搞个 … / 上交 整活 …
+export interface ExportStatement {
+  type: "ExportStatement";
+  declaration: VariableDeclaration | FunctionDeclaration;
+  loc: SourceLocation;
+}
+
 export interface ExpressionStatement {
   type: "ExpressionStatement";
   expression: Expression;
@@ -144,9 +161,26 @@ export interface UnaryExpression {
   loc: SourceLocation;
 }
 
+export interface ObjectLiteral {
+  type: "ObjectLiteral";
+  entries: Array<{ key: string; value: Expression }>;
+  loc: SourceLocation;
+}
+
+// Anonymous 整活（params）「body」 used as a value
+export interface FunctionExpression {
+  type: "FunctionExpression";
+  params: string[];
+  body: BlockStatement;
+  loc: SourceLocation;
+}
+
+export type AssignmentTarget = Identifier | IndexExpression | MemberExpression;
+
 export interface AssignmentExpression {
   type: "AssignmentExpression";
-  name: string;
+  operator: "=" | "+=" | "-=" | "*=" | "/=";
+  target: AssignmentTarget;
   value: Expression;
   loc: SourceLocation;
 }
@@ -165,6 +199,14 @@ export interface IndexExpression {
   loc: SourceLocation;
 }
 
+// object.property
+export interface MemberExpression {
+  type: "MemberExpression";
+  object: Expression;
+  property: string;
+  loc: SourceLocation;
+}
+
 // ---- Union Types ----
 export type Statement =
   | VariableDeclaration
@@ -178,6 +220,8 @@ export type Statement =
   | PassStatement
   | ThrowStatement
   | TryCatchStatement
+  | ForEachStatement
+  | ExportStatement
   | ExpressionStatement;
 
 export type Expression =
@@ -187,9 +231,12 @@ export type Expression =
   | BooleanLiteral
   | NullLiteral
   | ArrayLiteral
+  | ObjectLiteral
+  | FunctionExpression
   | BinaryExpression
   | LogicalExpression
   | UnaryExpression
   | AssignmentExpression
   | CallExpression
-  | IndexExpression;
+  | IndexExpression
+  | MemberExpression;

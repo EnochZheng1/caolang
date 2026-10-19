@@ -21,6 +21,8 @@ export const KEYWORDS: Map<string, TokenType> = new Map([
   ["虚无", TokenType.XU_WU],             // null
   ["并且", TokenType.BING_QIE],          // and
   ["或者", TokenType.HUO_ZHE],           // or
+  ["盘它", TokenType.PAN_TA],            // for-each（盘它！）
+  ["上交", TokenType.SHANG_JIAO],        // export（建议上交国家）
   // 1-char keywords
   ["卷", TokenType.JUAN],                 // while
   ["润", TokenType.RUN],                   // break

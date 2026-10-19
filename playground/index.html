@@ -12,7 +12,7 @@
     <header class="toolbar">
       <div class="toolbar-left">
         <h1 class="logo">草<span class="logo-sub">语言</span></h1>
-        <span class="version">v0.1.0</span>
+        <span class="version">v0.2.0</span>
         <button id="btn-mode-toggle" class="btn btn-small btn-mode">📖 开始学习</button>
       </div>
       <div class="toolbar-center">
@@ -75,6 +75,11 @@
         </div>
         <!-- Output tab content -->
         <div id="output-panel" class="tab-content">
+          <!-- 画布 stage: shown when a program calls 开画 -->
+          <div id="stage" class="stage hidden">
+            <canvas id="stage-canvas" tabindex="0"></canvas>
+            <button id="btn-fullscreen" class="btn btn-small stage-fullscreen" title="全屏">⛶ 全屏</button>
+          </div>
           <div id="output" class="terminal-output"></div>
         </div>
         <!-- Validation bar (course mode) -->

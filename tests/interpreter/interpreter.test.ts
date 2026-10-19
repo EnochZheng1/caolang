@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { run } from "../../src/index.js";
+import { BACKENDS } from "../helpers/backends.js";
 
-function capture(source: string): string[] {
-  const output: string[] = [];
-  run(source, { output: (text) => output.push(text) });
-  return output;
-}
+describe.each(BACKENDS)("Interpreter ($name)", (backend) => {
+  function capture(source: string): string[] {
+    const output: string[] = [];
+    backend.run(source, { output: (text) => output.push(text) });
+    return output;
+  }
 
-describe("Interpreter", () => {
   describe("basics", () => {
     it("prints hello world", () => {
       const output = capture('喊话（"你好世界"）');
