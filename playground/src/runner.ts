@@ -1,5 +1,4 @@
-import { Parser } from "@caolang/parser/index.js";
-import { Interpreter } from "@caolang/interpreter/index.js";
+import { runCompiled } from "@caolang/compiler/index.js";
 import { describeError } from "@caolang/errors/index.js";
 
 export interface RunOptions {
@@ -20,9 +19,8 @@ export function runCode(source: string, options: RunOptions = {}): RunResult {
   const start = performance.now();
 
   try {
-    const parser = Parser.fromSource(source);
-    const program = parser.parse();
-    const interpreter = new Interpreter({
+    // Compiled to JavaScript, so it runs at full browser speed
+    runCompiled(source, {
       output: (text: string) => output.push(text),
       easterEggs: {
         socialCredit: options.socialCredit,
@@ -30,7 +28,6 @@ export function runCode(source: string, options: RunOptions = {}): RunResult {
         strict: options.strict,
       },
     });
-    interpreter.run(program, source);
   } catch (e) {
     error = describeError(e);
   }

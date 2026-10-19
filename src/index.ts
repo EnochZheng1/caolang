@@ -5,6 +5,8 @@ export type { Program, Statement, Expression } from "./parser/index.js";
 export { Interpreter, CaoRuntimeError } from "./interpreter/index.js";
 export type { ModuleLoader } from "./interpreter/index.js";
 export { CaoError, CaoSyntaxError, describeError, formatError } from "./errors/index.js";
+export { compile, compileSource, runCompiled, execute, createRuntime } from "./compiler/index.js";
+export type { CompileOptions, CompileResult, RunCompiledOptions } from "./compiler/index.js";
 
 import { Parser } from "./parser/index.js";
 import { Interpreter } from "./interpreter/index.js";

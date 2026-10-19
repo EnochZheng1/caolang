@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Parser } from "./parser/index.js";
 import { Interpreter } from "./interpreter/index.js";
@@ -8,13 +8,18 @@ import { Lexer } from "./lexer/index.js";
 import { formatError, CaoError } from "./errors/index.js";
 import { nodeModuleLoader } from "./node-loader.js";
 import { startRepl } from "./repl.js";
+import { compileSource, execute } from "./compiler/index.js";
+import { loadNpmModules, buildStandalone } from "./compiler/node.js";
 import type { EasterEggOptions } from "./interpreter/easter-eggs.js";
 
 const rawArgs = process.argv.slice(2);
 
-// Parse flags
-const flags = new Set(rawArgs.filter((a) => a.startsWith("--")));
-const args = rawArgs.filter((a) => !a.startsWith("--"));
+// Parse flags; "-o <file>" takes a value
+const outIndex = rawArgs.findIndex((a) => a === "-o" || a === "--输出");
+const outFile = outIndex >= 0 ? rawArgs[outIndex + 1] : undefined;
+const positional = rawArgs.filter((_, i) => outIndex < 0 || (i !== outIndex && i !== outIndex + 1));
+const flags = new Set(positional.filter((a) => a.startsWith("-")));
+const args = positional.filter((a) => !a.startsWith("-"));
 const command = args[0];
 
 function printUsage(): void {
@@ -22,7 +27,9 @@ function printUsage(): void {
 草语言 (CaoLang) v0.2.0 — 一个基于梗的中文编程语言
 
 用法:
-  cao run <文件.cao>      执行一个 .cao 文件
+  cao run <文件.cao>      执行一个 .cao 文件（编译成 JS 跑，快）
+  cao build <文件.cao> [-o 输出.mjs]
+                           编译成独立的 JS 文件，node 或浏览器都能跑
   cao tokenize <文件.cao>  输出词法分析结果（调试用）
   cao parse <文件.cao>     输出语法树（调试用）
   cao repl                 启动交互式控制台
@@ -35,6 +42,9 @@ function printUsage(): void {
   --996                    启用996模式（深夜卷有猝死风险）
   --strict                 启用严厉模式（必须用中文标点）
   --全部彩蛋               启用所有彩蛋
+
+其他:
+  --解释 / --interp        用解释器跑（不编译，调试用）
 `);
 }
 
@@ -73,35 +83,61 @@ function readSource(filepath: string): { source: string; filename: string } {
   }
 }
 
-function runFile(filepath: string): void {
+/** Blank out a leading 严厉 directive (keeping line numbers) so the parser doesn't see it. */
+function stripStrictDirective(source: string): string {
+  const firstCodeLine = source.split("\n").find((l) => l.trim() && !l.trim().startsWith("//"));
+  if (firstCodeLine?.trim() !== "严厉") return source;
+  return source.replace(/^([^\n]*\n)*?严厉\s*\n?/, (match) =>
+    "\n".repeat((match.match(/\n/g) || []).length),
+  );
+}
+
+function reportAndExit(e: unknown, source: string, filename: string): never {
+  if (e instanceof CaoError) {
+    // Errors from an imported file carry that file's name and source
+    console.error(formatError(e.message, e.source ?? source, e.loc, e.filename ?? filename));
+  } else if (e instanceof Error) {
+    console.error(formatError(e.message, source, undefined, filename));
+  } else {
+    console.error(e);
+  }
+  process.exit(1);
+}
+
+async function runFile(filepath: string): Promise<void> {
   const { source, filename } = readSource(filepath);
   const eggs = getEasterEggs(source);
-
-  // Strip 严厉 directive before parsing
-  let parseSource = source;
-  const firstCodeLine = source.split("\n").find((l) => l.trim() && !l.trim().startsWith("//"));
-  if (firstCodeLine?.trim() === "严厉") {
-    parseSource = source.replace(/^([^\n]*\n)*?严厉\s*\n?/, (match) =>
-      "\n".repeat((match.match(/\n/g) || []).length),
-    );
-  }
+  const parseSource = stripStrictDirective(source);
 
   try {
-    const parser = Parser.fromSource(parseSource);
-    const program = parser.parse();
-    const interpreter = new Interpreter({ easterEggs: eggs, modules: nodeModuleLoader });
-    interpreter.run(program, source, filename);
-  } catch (e) {
-    if (e instanceof CaoError) {
-      // Errors from an imported file carry that file's name and source
-      console.error(formatError(e.message, e.source ?? source, e.loc, e.filename ?? filename));
-    } else if (e instanceof Error) {
-      console.error(formatError(e.message, source, undefined, filename));
-    } else {
-      console.error(e);
+    if (flags.has("--解释") || flags.has("--interp")) {
+      const program = Parser.fromSource(parseSource).parse();
+      const interpreter = new Interpreter({ easterEggs: eggs, modules: nodeModuleLoader });
+      interpreter.run(program, source, filename);
+      return;
     }
-    process.exit(1);
+    const options = { easterEggs: eggs, modules: nodeModuleLoader, filename, source };
+    const compiled = compileSource(parseSource, options);
+    const npm = await loadNpmModules(compiled.npm, filename);
+    execute(compiled, { ...options, npm });
+  } catch (e) {
+    reportAndExit(e, source, filename);
   }
+}
+
+function buildFile(filepath: string): void {
+  const { source, filename } = readSource(filepath);
+  const eggs = getEasterEggs(source);
+  const target = resolve(outFile ?? filepath.replace(/\.cao$/, "") + ".mjs");
+  try {
+    const compiled = compileSource(stripStrictDirective(source), {
+      easterEggs: eggs, modules: nodeModuleLoader, filename, source,
+    });
+    writeFileSync(target, buildStandalone(compiled));
+  } catch (e) {
+    reportAndExit(e, source, filename);
+  }
+  console.log(`编译好了 → ${target}`);
 }
 
 function tokenizeFile(filepath: string): void {
@@ -136,7 +172,14 @@ if (flags.has("--help") || flags.has("-h")) {
     console.error("错误！请指定要运行的文件，例如: cao run hello.cao");
     process.exit(1);
   }
-  runFile(file);
+  void runFile(file);
+} else if (command === "build") {
+  const file = args[1];
+  if (!file) {
+    console.error("错误！请指定要编译的文件，例如: cao build hello.cao");
+    process.exit(1);
+  }
+  buildFile(file);
 } else if (command === "tokenize") {
   const file = args[1];
   if (!file) {
@@ -152,7 +195,7 @@ if (flags.has("--help") || flags.has("-h")) {
   }
   parseFile(file);
 } else if (command.endsWith(".cao")) {
-  runFile(command);
+  void runFile(command);
 } else {
   console.error(`不认识这个命令: ${command}`);
   printUsage();

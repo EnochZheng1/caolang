@@ -47,7 +47,10 @@ npm run dev -- run examples/hello.cao
 ## 用法 Usage
 
 ```bash
-cao run <文件.cao>        # 运行一个 .cao 文件
+cao run <文件.cao>        # 运行一个 .cao 文件（先编译成 JavaScript 再跑，快）
+cao build <文件.cao>      # 编译成独立的 .mjs 文件，node 和浏览器都能跑
+cao build a.cao -o b.mjs  # 指定输出文件
+cao run <文件.cao> --解释 # 用解释器跑（调试用，慢）
 cao                       # 启动交互式控制台（REPL）
 cao repl                  # 同上
 cao tokenize <文件.cao>   # 查看词法分析结果（给卷王看的）
@@ -332,6 +335,52 @@ REPL 长这样：
 
 ---
 
+## ⚡ 编译成 JavaScript
+
+草语言不是玩具解释器：`cao run` 会先把代码编译成 JavaScript，再交给 V8 跑，**速度跟手写 JS 一个级别**。
+
+| 测试 | 草语言（编译） | 手写 JS | Python 3.13 | 草语言（旧解释器） |
+|------|------|------|------|------|
+| 斐波那契(30) 递归 | **39ms** | 42ms | 123ms | 3300ms |
+| 1000万次循环 | **119ms** | 76ms | 2317ms | — |
+
+> 在 Node 22 上测的。斐波那契比 Python 快 3 倍，循环比 Python 快 20 倍。卷就完事了。
+
+编译出来的 JS 是能看的，中文名字原样保留：
+
+```
+整活 加法（a，b）「
+  栓Q a + b
+」
+```
+
+```js
+let 加法 = function (a, b) {
+  if (arguments.length !== 2) $.arity("加法", 2, arguments.length);
+  return $.add(a, b);
+};
+```
+
+`cao build` 会把运行时一起打包成一个独立的 `.mjs` 文件（约 27KB），`node 文件.mjs` 直接跑，不用装草语言；不引用 npm 包的话，浏览器里 `<script type="module">` 也能跑。
+
+报错照样是梗味的，照样告诉你是哪个文件哪一行。
+
+## 📦 用 npm 包
+
+编译模式下，整个 npm 生态都能直接拿来用：
+
+```
+搞个 _ = 拿来吧你（"npm:lodash"）       // npm 包（先 npm install lodash）
+搞个 路径 = 拿来吧你（"node:path"）     // Node 内置模块
+
+喊话（_.chunk（范围（7），3））            // [[0，1，2]，[3，4，5]，[6]]
+喊话（路径.join（"a"，"b"，"c.cao"））     // a/b/c.cao
+```
+
+草语言的数组就是 JS 数组，字典就是 JS 对象，数字字符串都一样，传进传出不用转换。JS 那边抛的错误也能用 `真香/草` 接住。
+
+---
+
 ## 标点符号 Punctuation
 
 草语言支持中文标点和 ASCII 标点，**可以混用**：
@@ -552,11 +601,12 @@ npm run dev -- run examples/meme-showcase.cao
 ## 技术细节 Technical Details
 
 - **实现语言**: TypeScript
-- **执行模型**: Tree-walking 解释器
+- **执行模型**: 编译成 JavaScript（默认），另有 tree-walking 解释器（`--解释`、REPL）；两个后端跑同一套测试，保证行为一致
 - **解析器**: Pratt parser（自顶向下运算符优先级）
 - **作用域**: 词法作用域，支持闭包
 - **类型系统**: 动态类型（数字、字符串、布尔、虚无、数组、字典、函数）
 - **运行时依赖**: 零（纯 TypeScript，无第三方依赖）
+- **编译器**: AST → JavaScript，原生 JS 值（数组就是数组、字典就是对象），报错通过行号映射回 .cao 源码
 - **Unicode**: 正确处理 CJK 字符，支持中文标识符
 - **标点**: 中文标点在词法分析阶段归一化，解析器只看规范形式
 
@@ -570,7 +620,7 @@ npm run dev -- run examples/meme-showcase.cao
 
 ```bash
 npm install          # 安装依赖
-npm test             # 跑测试（148个）
+npm test             # 跑测试（271个，解释器和编译器各跑一遍）
 npm run dev          # 用 tsx 直接跑
 npm run build        # 编译到 dist/
 npm run lint         # 类型检查

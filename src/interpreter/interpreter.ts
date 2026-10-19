@@ -182,6 +182,9 @@ export class Interpreter implements CallContext {
   }
 
   private importModule(specifier: string, fromFile: string | null): CaoDict {
+    if (specifier.startsWith("npm:") || specifier.startsWith("node:")) {
+      throw new CaoRuntimeError("解释器拿不了 npm 包，去掉 --解释 用编译模式跑");
+    }
     if (!this.modules) {
       throw new CaoRuntimeError("拿来吧你……拿了个寂寞：这个环境不支持引入文件");
     }

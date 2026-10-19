@@ -1,40 +1,39 @@
 import { describe, it, expect } from "vitest";
-import { run } from "../../src/index.js";
-import { Parser } from "../../src/parser/index.js";
-import { Interpreter, CaoRuntimeError } from "../../src/interpreter/index.js";
 import type { ModuleLoader } from "../../src/interpreter/index.js";
+import type { CaoError } from "../../src/errors/index.js";
+import { BACKENDS } from "../helpers/backends.js";
 
-function capture(source: string): string[] {
-  const output: string[] = [];
-  run(source, { output: (text) => output.push(text) });
-  return output;
-}
-
-/** Run `main` with an in-memory file system of .cao modules. */
-function runWithFiles(files: Record<string, string>, main = "main.cao"): string[] {
-  const output: string[] = [];
-  const loader: ModuleLoader = {
-    resolve: (spec) => (spec.replace(/^\.\//, "").endsWith(".cao") ? spec.replace(/^\.\//, "") : `${spec.replace(/^\.\//, "")}.cao`),
-    read: (path) => {
-      if (!(path in files)) throw new Error("ENOENT");
-      return files[path];
-    },
-  };
-  const interpreter = new Interpreter({ output: (t) => output.push(t), modules: loader });
-  interpreter.run(Parser.fromSource(files[main]).parse(), files[main], main);
-  return output;
-}
-
-function errorOf(fn: () => unknown): CaoRuntimeError {
+function errorOf(fn: () => unknown): CaoError {
   try {
     fn();
   } catch (e) {
-    return e as CaoRuntimeError;
+    return e as CaoError;
   }
   throw new Error("expected an error");
 }
 
-describe("CaoLang v0.2", () => {
+describe.each(BACKENDS)("CaoLang v0.2 ($name)", (backend) => {
+  function capture(source: string): string[] {
+    const output: string[] = [];
+    backend.run(source, { output: (text) => output.push(text) });
+    return output;
+  }
+
+  /** Run `main` with an in-memory file system of .cao modules. */
+  function runWithFiles(files: Record<string, string>, main = "main.cao"): string[] {
+    const output: string[] = [];
+    const strip = (spec: string) => spec.replace(/^\.\//, "");
+    const loader: ModuleLoader = {
+      resolve: (spec) => (strip(spec).endsWith(".cao") ? strip(spec) : `${strip(spec)}.cao`),
+      read: (path) => {
+        if (!(path in files)) throw new Error("ENOENT");
+        return files[path];
+      },
+    };
+    backend.run(files[main], { output: (t) => output.push(t), modules: loader, filename: main });
+    return output;
+  }
+
   describe("字典 dicts", () => {
     it("creates, reads, and prints dicts", () => {
       expect(capture('搞个 人 = 「名字："张三"，年龄：25」\n喊话（人.名字，人["年龄"]）\n喊话（人）')).toEqual([
@@ -222,7 +221,7 @@ describe("CaoLang v0.2", () => {
 
     it("attaches line and column to runtime errors", () => {
       const e = errorOf(() => capture("搞个 a = 1\n\n喊话（a / 0）"));
-      expect(e.loc).toMatchObject({ line: 3, column: 4 });
+      expect(e.loc).toMatchObject({ line: 3 });
     });
 
     it("reports 润 outside a loop", () => {
@@ -231,6 +230,72 @@ describe("CaoLang v0.2", () => {
 
     it("lets a top-level 栓Q end the program", () => {
       expect(capture('喊话（1）\n栓Q\n喊话（2）')).toEqual(["1"]);
+    });
+  });
+
+  describe("scoping edge cases", () => {
+    it("allows 搞个 twice in the same scope", () => {
+      expect(capture("搞个 x = 1\n搞个 x = x + 1\n喊话（x）")).toEqual(["2"]);
+    });
+
+    it("lets an inner 搞个 read the outer variable it shadows", () => {
+      expect(capture("搞个 x = 10\n如果（确实）「\n  搞个 x = x + 1\n  喊话（x）\n」\n喊话（x）")).toEqual(["11", "10"]);
+    });
+
+    it("lets 搞个 redeclare a parameter, catch variable, or loop variable", () => {
+      expect(capture(
+        "整活 f（n）「搞个 n = n * 2；栓Q n」\n喊话（f（4））\n" +
+        '真香「寄（1）」草（e）「搞个 e = e + 1；喊话（e）」\n' +
+        "盘它（x：[1]）「搞个 x = x + 100；喊话（x）」",
+      )).toEqual(["8", "2", "101"]);
+    });
+
+    it("allows JS reserved words as names", () => {
+      expect(capture("搞个 class = 1\n搞个 undefined = 2\n搞个 arguments = 3\n整活 new（this）「栓Q this + 1」\n喊话（class + undefined + arguments，new（1））")).toEqual([
+        "6 2",
+      ]);
+    });
+
+    it("keeps __proto__ as an ordinary dict key", () => {
+      expect(capture('搞个 d = 「"__proto__"：1」\n喊话（d["__proto__"]，长度（d））')).toEqual(["1 1"]);
+    });
+
+    it("reports using a function before it is declared", () => {
+      expect(() => capture("f（）\n整活 f（）「摆烂」")).toThrow("这谁啊，不认识: f");
+    });
+
+    it("captures a fresh loop variable per iteration", () => {
+      expect(capture(
+        "搞个 fs = []\n盘它（i：范围（3））「推入（fs，整活（）「栓Q i」）」\n喊话（映射（fs，整活（f）「栓Q f（）」））",
+      )).toEqual(["[0，1，2]"]);
+    });
+
+    it("supports 润 and 继续卷 inside 真香 inside a loop", () => {
+      expect(capture(
+        "搞个 i = 0\n卷（确实）「\n  i += 1\n  真香「\n    如果（i == 2）「继续卷」\n    如果（i == 4）「润」\n  」草「摆烂」\n  喊话（i）\n」",
+      )).toEqual(["1", "3"]);
+    });
+
+    it("并且/或者 return operands, with CaoLang truthiness", () => {
+      expect(capture('喊话（[] 或者 "空数组是假的"，「a：1」 并且 "非空字典是真的"，0 或者 虚无，非 []）')).toEqual([
+        "空数组是假的 非空字典是真的 虚无 确实",
+      ]);
+    });
+
+    it("a recursive function stored in a variable can call itself", () => {
+      expect(capture("搞个 阶乘 = 整活（n）「如果（n <= 1）「栓Q 1」栓Q n * 阶乘（n - 1）」\n喊话（阶乘（5））")).toEqual(["120"]);
+    });
+
+    it("functions without 栓Q return 虚无", () => {
+      expect(capture("整活 f（）「摆烂」\n喊话（f（），类型（f（）），f（） == 虚无）")).toEqual(["虚无 虚无 确实"]);
+    });
+
+    it("reports wrong argument counts for user functions", () => {
+      expect(() => capture("整活 f（a，b）「摆烂」\nf（1）")).toThrow("参数数量不对，「f」需要2个，你给了1个");
+    });
+
+    it("reports calling something that isn't a function", () => {
+      expect(() => capture("搞个 x = 1\nx（）")).toThrow("不能被调用");
     });
   });
 

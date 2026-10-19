@@ -1,23 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { Parser } from "../../src/parser/index.js";
-import { Interpreter } from "../../src/interpreter/index.js";
+import { BACKENDS } from "../helpers/backends.js";
 
-function runWithEggs(
-  source: string,
-  eggs: { socialCredit?: boolean; strict?: boolean; mode996?: boolean },
-): string[] {
-  const output: string[] = [];
-  const parser = Parser.fromSource(source);
-  const program = parser.parse();
-  const interpreter = new Interpreter({
-    output: (text) => output.push(text),
-    easterEggs: eggs,
-  });
-  interpreter.run(program, source);
-  return output;
-}
+describe.each(BACKENDS)("Easter Eggs ($name)", (backend) => {
+  function runWithEggs(
+    source: string,
+    eggs: { socialCredit?: boolean; strict?: boolean; mode996?: boolean },
+  ): string[] {
+    const output: string[] = [];
+    backend.run(source, { output: (text) => output.push(text), easterEggs: eggs });
+    return output;
+  }
 
-describe("Easter Eggs", () => {
   describe("Social Credit System", () => {
     it("warns when function has > 5 returns", () => {
       const source = `
