@@ -1,7 +1,15 @@
 {
   "name": "caolang",
   "version": "0.2.0",
-  "description": "草语言 — A meme-based Chinese programming language",
+  "description": "草语言 — a programming language made of Chinese internet slang. Compiles to JavaScript; can build 3D games.",
+  "homepage": "https://enochzheng1.github.io/caolang/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EnochZheng1/caolang.git"
+  },
+  "bugs": {
+    "url": "https://github.com/EnochZheng1/caolang/issues"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -11,7 +19,9 @@
   },
   "files": [
     "dist/",
+    "examples/",
     "README.md",
+    "README.en.md",
     "LICENSE"
   ],
   "scripts": {
@@ -31,9 +41,15 @@
     "interpreter",
     "meme",
     "caolang",
-    "草语言"
+    "草语言",
+    "compiler",
+    "javascript",
+    "game",
+    "raycasting",
+    "esolang",
+    "梗"
   ],
-  "author": "",
+  "author": "enochzheng",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^25.5.0",
