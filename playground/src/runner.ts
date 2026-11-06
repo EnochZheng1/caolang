@@ -59,7 +59,8 @@ export function runCode(source: string, options: RunOptions = {}, stage?: StageH
               createAudioContext: () => new AudioContext(),
               onOpen: stage.onOpen,
               touchDevice: navigator.maxTouchPoints > 0,
-              saveImage: showSavedImage,
+              saveImage: (c, name) =>
+                showSavedImage(c, name, { text: "⭐ 看源码", href: "https://github.com/EnochZheng1/caolang" }),
             })
         : undefined,
       onError: stage ? (e) => stage.onLateError(describeError(e)) : undefined,

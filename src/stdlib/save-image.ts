@@ -5,7 +5,11 @@
  *
  * Self-contained, so `cao build --网页` can embed it with toString().
  */
-export function showSavedImage(canvas: HTMLCanvasElement, filename: string): void {
+export function showSavedImage(
+  canvas: HTMLCanvasElement,
+  filename: string,
+  link?: { text: string; href: string },
+): void {
   const url = canvas.toDataURL("image/png");
   const old = document.getElementById("cao-saved-image");
   if (old) old.remove();
@@ -42,7 +46,17 @@ export function showSavedImage(canvas: HTMLCanvasElement, filename: string): voi
   close.style.background = "#555";
   close.addEventListener("click", () => overlay.remove());
 
-  actions.append(download, close);
+  actions.append(download);
+  // e.g. "⭐ 看源码" — the moment someone is enjoying it is the moment to show where it came from
+  if (link) {
+    const extra = button(link.text);
+    extra.href = link.href;
+    extra.target = "_blank";
+    extra.rel = "noopener";
+    extra.style.background = "#24292f";
+    actions.append(extra);
+  }
+  actions.append(close);
   overlay.append(img, hint, actions);
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) overlay.remove();

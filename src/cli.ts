@@ -19,7 +19,14 @@ const rawArgs = process.argv.slice(2);
 const outIndex = rawArgs.findIndex((a) => a === "-o" || a === "--输出");
 const outFile = outIndex >= 0 ? rawArgs[outIndex + 1] : undefined;
 const positional = rawArgs.filter((_, i) => outIndex < 0 || (i !== outIndex && i !== outIndex + 1));
-const flags = new Set(positional.filter((a) => a.startsWith("-")));
+// "--key=value" options (e.g. --标题=… for cao build --网页)
+const options = new Map(
+  positional.filter((a) => a.startsWith("--") && a.includes("=")).map((a) => {
+    const i = a.indexOf("=");
+    return [a.slice(2, i), a.slice(i + 1)] as [string, string];
+  }),
+);
+const flags = new Set(positional.filter((a) => a.startsWith("-") && !a.includes("=")));
 const args = positional.filter((a) => !a.startsWith("-"));
 const command = args[0];
 
@@ -33,6 +40,8 @@ function printUsage(): void {
                            编译成独立的 JS 文件，node 或浏览器都能跑
   cao build <文件.cao> --网页
                            编译成一个 HTML 网页（带画布，做游戏用）
+                           可选：--标题=… --描述=… --预览图=图片网址 --网址=页面网址 --源码=仓库网址
+                           （分享链接时的预览卡片用）
   cao tokenize <文件.cao>  输出词法分析结果（调试用）
   cao parse <文件.cao>     输出语法树（调试用）
   cao repl                 启动交互式控制台
@@ -140,7 +149,14 @@ function buildFile(filepath: string): void {
       extraBuiltins: web ? CANVAS_BUILTINS : undefined,
     });
     const title = base.split(/[\\/]/).pop() ?? "草语言";
-    writeFileSync(target, web ? buildWebPage(compiled, title) : buildStandalone(compiled));
+    const meta = {
+      description: options.get("描述") ?? options.get("description"),
+      image: options.get("预览图") ?? options.get("image"),
+      url: options.get("网址") ?? options.get("url"),
+      source: options.get("源码") ?? options.get("source"),
+    };
+    const pageTitle = options.get("标题") ?? options.get("title") ?? title;
+    writeFileSync(target, web ? buildWebPage(compiled, pageTitle, meta) : buildStandalone(compiled));
   } catch (e) {
     reportAndExit(e, source, filename);
   }
