@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: ▶ 在线玩《逃离996》
+    url: https://enochzheng1.github.io/caolang/996.html
+    about: 先玩一把再说
+  - name: ✏️ 在线写草语言
+    url: https://enochzheng1.github.io/caolang/
+    about: Playground，不用安装

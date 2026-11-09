@@ -401,3 +401,10 @@ html, body {
     width: 100%;
   }
 }
+
+/* === GitHub link === */
+.btn-github {
+  text-decoration: none;
+  margin-left: 6px;
+  white-space: nowrap;
+}

@@ -1,0 +1,31 @@
+name: 🌿 新梗提案 / New meme
+description: 新关键字、新报错梗、新内置函数、新老板台词……
+labels: ["新梗"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 哪种梗？ Kind
+      options:
+        - 报错信息 Error message
+        - 内置函数 Builtin
+        - 关键字 Keyword
+        - 《逃离996》内容（台词、关卡、道具）Game content
+        - 其他 Other
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: 梗是什么？ The meme
+      description: 写出梗本身，以及它为什么好笑 / 适合放在这里
+      placeholder: |
+        比如：数组越界的时候报「越界了兄弟，别越线」
+    validations:
+      required: true
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: 想自己做吗？
+      options:
+        - label: 我想自己提 PR（看 CONTRIBUTING.md 怎么做）

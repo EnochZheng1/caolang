@@ -61,19 +61,42 @@ export function buildStandalone(result: CompileResult): string {
  * A single self-contained HTML page: runtime + 画布 + the program. Open it in
  * a browser, put it on any static host, or send it to a friend.
  */
-export function buildWebPage(result: CompileResult, title: string): string {
+export interface WebPageMeta {
+  /** Shown in search results and link previews. */
+  description?: string;
+  /** Absolute URL of a preview image (1200×630-ish) for link cards. */
+  image?: string;
+  /** The page's own public URL. */
+  url?: string;
+  /** Source code URL, offered as "⭐ 看源码" next to saved images (存图). */
+  source?: string;
+}
+
+export function buildWebPage(result: CompileResult, title: string, meta: WebPageMeta = {}): string {
   if (result.npm.length > 0) {
     throw new Error(`网页版拿不了 npm 包：${result.npm.join("、")}`);
   }
   const escapeHtml = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
   // Keep "</script>" inside the program's strings from ending the script tag
   const script = (js: string) => js.replace(/<\/(script)/gi, "<\\/$1");
+  // Link previews (WeChat, X, Discord, Slack…) read these
+  const metaTags = [
+    meta.description && `<meta name="description" content="${escapeHtml(meta.description)}">`,
+    `<meta property="og:type" content="website">`,
+    `<meta property="og:title" content="${escapeHtml(title)}">`,
+    meta.description && `<meta property="og:description" content="${escapeHtml(meta.description)}">`,
+    meta.url && `<meta property="og:url" content="${escapeHtml(meta.url)}">`,
+    meta.image && `<meta property="og:image" content="${escapeHtml(meta.image)}">`,
+    meta.image && `<meta name="twitter:card" content="summary_large_image">`,
+    meta.image && `<meta name="twitter:image" content="${escapeHtml(meta.image)}">`,
+  ].filter(Boolean).join("\n");
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
+${metaTags}
 <!-- 由草语言编译生成 — compiled from CaoLang (草语言) -->
 <style>
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
@@ -116,7 +139,7 @@ installCanvas($, {
   createAudioContext: () => new AudioContext(),
   onOpen: () => canvas.focus(),
   touchDevice: navigator.maxTouchPoints > 0,
-  saveImage: showSavedImage,
+  saveImage: ${meta.source ? `(c, name) => showSavedImage(c, name, { text: "⭐ 看源码", href: ${JSON.stringify(meta.source)} })` : "showSavedImage"},
 });
 try {
 (function ($, $npm) {

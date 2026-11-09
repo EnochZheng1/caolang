@@ -1,0 +1,22 @@
+name: 🐛 出 bug 了 / Bug report
+description: 草语言或《逃离996》哪里不对劲
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么？ What happened?
+      description: 出了什么错，报错信息是什么（截图也行）
+    validations:
+      required: true
+  - type: textarea
+    id: code
+    attributes:
+      label: 能复现的代码 Code to reproduce
+      description: 一小段能复现问题的草语言代码，或者玩游戏时的操作步骤
+      render: text
+  - type: input
+    id: where
+    attributes:
+      label: 在哪里跑的？ Where?
+      description: 例如 Playground / 手机浏览器 / cao run（Node 版本）
